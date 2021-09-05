@@ -73,6 +73,58 @@ async function connect() {
   connected = true;
 }
 
+let dimming = false;
+let dimInterval;
+let bri = 0;
+let color = { r: 0, g: 0, b: 0 };
+let SMOOTH = 50;
+
+async function dim(tBri, [tr, tg, tb], t) {
+  if (dimming) clearInterval(dimInterval);
+  dimming = true;
+  let timePassed = 0;
+
+  const dBri = (tBri - bri) / ((t * 1000) / SMOOTH);
+  const dr = (tr - color.r) / ((t * 1000) / SMOOTH);
+  const dg = (tg - color.g) / ((t * 1000) / SMOOTH);
+  const db = (tb - color.b) / ((t * 1000) / SMOOTH);
+
+  return await new Promise((resolve, reject) => {
+    const to = setTimeout(
+      () => reject(new Error('Uncompleted')),
+      (t + 0.5) * 1000
+    );
+    dimInterval = setInterval(() => {
+      bri += dBri;
+      color.r += dr;
+      color.g += dg;
+      color.b += db;
+      // console.log(
+      //   Math.round(bri),
+      //   Math.round(color.r),
+      //   Math.round(color.g),
+      //   Math.round(color.b)
+      // );
+      run(COMMANDS.BRI, Math.round(bri)).then(() =>
+        run(
+          COMMANDS.COLOR,
+          Math.round(color.r),
+          Math.round(color.g),
+          Math.round(color.b)
+        )
+      );
+
+      timePassed += SMOOTH;
+      if (timePassed >= t * 1000) {
+        clearInterval(dimInterval);
+        clearTimeout(to);
+        dimming = false;
+        resolve();
+      }
+    }, SMOOTH);
+  });
+}
+
 module.exports = {
   connect: () =>
     connect().catch((error) => {
@@ -92,5 +144,6 @@ module.exports = {
       noble.stopScanning();
       if (device) device.disconnect();
     }),
+  dim,
   COMMANDS,
 };
